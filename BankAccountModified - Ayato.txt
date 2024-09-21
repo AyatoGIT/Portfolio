@@ -1,0 +1,208 @@
+;;; Ayato Mori
+;;; 300336797
+;;; Cosc 231-01, winter term 2024
+;;; Banks and Bank accounts
+;;; submittable
+;;; start this code with (define bank-name (make-bank "ManagerName"))
+
+(#%require (only racket/base random))
+
+
+; check if the input is valid transaction-type either deposit or withdraw
+(define (transaction-type-checker message)
+  (if (equal? message 'deposit)
+      #t
+      (if (equal? message 'withdraw)
+          #t
+          #f)))
+              
+
+; return if there are more than 5 transaction, the sum of the amount in the last 5 transaction. if there's less than 5 transaction, just returns the sum of all transaction
+; only takes the sum of specified transaction
+(define (sum-transaction history message counter acc)
+  (if (= counter 5)
+      acc
+      (if (null? history)
+          acc
+          (sum-transaction (cdr history) message (+ counter 1) (+ acc (if (equal? ((car history) 'get-message) message)
+                                                                          ((car history) 'get-amount)
+                                                                          0))))))
+; returns boolean value depending on the sum-transaction
+(define (limit-checker sum-transaction)
+  (if (<= 5000 sum-transaction)
+      #t
+      #f))
+
+
+; returns true if the procedure's name matches the argument
+(define (isName account name)
+      (if (eqv? (account 'get-name 0) name)
+          #t
+          #f))
+
+
+
+; takes a list of bank account as an argument and print out the name of the accounts
+(define (printList list)
+  (if (list? list)
+      (if (not (null? list))
+          (begin
+            (display ((car list) 'get-name 0))
+            (printList (cdr list)))
+          '())
+      '()))
+                 
+
+
+; tail recursive, takes list and acc returns the total balance: set the acc as 0 
+(define (get-sum-balance list acc)
+  (if (null? list)
+      acc
+      (begin
+        (set! acc (+ acc ((car list) 'get-balance 0)))
+        (get-sum-balance (cdr list) acc))))
+  
+
+
+; has local value totalDeposit, totalWithdraw, account-number, password and history
+; make-transaction : creates a transaction object
+; printHistory : print out all the transaction history
+(define make-account
+  (lambda (name)
+    (display "set a password for this account \n")
+    (let ((totalDeposit 0)
+          (totalWithdraw 0)
+          (account-number (random 1000))
+          (password (read))
+          (history '()))
+      (display (string-append (symbol->string name) "'s account number is " (number->string account-number) "\n"))
+
+      
+      ; every account is capable of making a transaction object(procedure)
+      (define (make-transaction transaction-message transaction-amount) 
+        (let ((msg transaction-message)
+              (amt transaction-amount))
+          ; branching depending of the transaction-message
+          (case msg
+            ('deposit
+             (set! totalDeposit (+ totalDeposit amt))
+             (display (string-append "your balance is : $" (number->string (- totalDeposit totalWithdraw)) "\n")))
+            ('withdraw
+             (display "enter the account password :\n")
+             (if (equal? password (read))
+                 (if (>= (- totalDeposit totalWithdraw) amt)
+                     (begin
+                       (set! totalWithdraw (+ totalWithdraw amt))
+                       (display (string-append "your balance is : " (number->string (- totalDeposit totalWithdraw)) "\n")))
+                     (display "insufficient funds \n"))
+                 (display "wrong account password \n")))
+            (else "invalid type of transaction"))
+          ;return a procedure waiting for an argument
+            (lambda (message)
+              (case message
+                ('get-message msg)
+                ('get-amount amt)))))
+      
+      ; takes a list as an argument and print out the transaction type and the amount of the transaction
+      (define (printHistory history)
+        (if (list? history)
+            (if (not (null? history))
+                (begin
+                  (display (string-append (symbol->string ((car history) 'get-message)) " : " (number->string ((car history) 'get-amount)) "\n"))
+                  (printHistory (cdr history))))
+            (display "there's no transaction")))
+
+      
+      (display (string-append "Hello " (symbol->string name) " how can I help you \n"))
+      (display " ((bank-name 'get-account) 'transaction) : deposit/withdraw \n ((bank-name 'get-account) 'get-history) : history of your transaction \n ((bank-name 'get-account) 'get-balance) : your current balance \n ((bank-name 'get-account) 'get-account-number) : your account number \n ((bank-name 'get-account) 'get-name) : registered name for this bank account \n")
+      
+      ;takes a list of arguments 
+      (lambda args 
+        (case (length args)
+          (0 ; takes two arguments and peform transaction, get-history, get-balance, get-name, or get-account-number
+             (lambda (message)
+               (case message
+                 ('transaction
+                  (display "deposit or withdraw? \n")
+                  (let ((transaction-type (read)))
+                    (if (transaction-type-checker transaction-type)
+                        (begin 
+                          (display (string-append "how much you want to " (symbol->string transaction-type) " ?\n"))
+                          (let ((transaction-amount (read)))
+                            (if (limit-checker (sum-transaction history transaction-type 0 transaction-amount)) ; setting counter and accumulater as 0
+                                (display "You have reached the limit of your transaction\n")
+                                (begin
+                                  (display (string-append "how much you want to " (symbol->string transaction-type) " ?\n"))
+                                  (set! history (cons (make-transaction transaction-type transaction-amount) history))
+                                  (display "transaction history :\n")
+                                  (printHistory history)))))
+                        (display "invalid transaction-type"))))
+                 ('get-history (printHistory history))
+                 ('get-balance  (- totalDeposit totalWithdraw))
+                 ('get-name name)
+                 ('get-account-number account-number))))
+          (1 (let ((arg1 (car args)))
+               ;if the first argument is 1, return account-number
+               (if (= arg1 1)
+                   account-number))))))))
+
+
+; have local value cust-list and manager-password and takes msg as an argument and peform different procedure depending on the msg
+(define make-bank
+  (lambda (m-name)
+    (display (string-append "Hello " m-name " set a password for this bank please\n"))
+    (let ((cust-list '())
+          (manager-password (read))
+          (manager-name m-name))
+
+      ; takes a list and returns a procedure in the list if a predicate isAccountNumber is true otherwise recursive call
+      (define (get-account list account-number-input)
+        (if (not (list? list))
+            (if (isAccountNumber list account-number-input)
+                (list)
+                #f)
+            (if (not (null? list))
+                (let ((result-car (get-account (car list) account-number-input)))
+                  (if result-car
+                      result-car
+                      (get-account (cdr list) account-number-input)))
+                #f)))
+
+
+      ; returns true if the account-number matches the input
+      (define (isAccountNumber account input)
+        (if (= input (account 1))
+            #t
+            #f))
+      
+      
+      (display (string-append "Hello " manager-name " how can I help you \n"))
+      (display " (bank-name 'add-account) : add an account in this bank \n (bank-name 'get-account-list) : print out the name of each account \n (bank-name 'get-account) : go to an individual account specified by its account number \n (bank-name 'get-sum-balance) : get the sum of the balance of all accounts \n")
+      (lambda (msg)
+        (case msg
+          ('add-account
+            (display "enter manager password \n")
+            (if (eqv? manager-password (read))
+                (begin 
+                  (display "enter the name of the account \n")
+                  (set! cust-list
+                      (cons (make-account (read)) cust-list)))
+                (display "wrong manager password \n")))
+          ('get-account-list (printList cust-list)); print out the name of each account
+          ('get-account
+            (display "enter manager password \n")
+            (if (eqv? manager-password (read))
+                (begin
+                  (display "enter the account-number \n")
+                  (get-account cust-list (read)))
+                (display "wrong manager password \n")))
+          ('get-sum-balance (get-sum-balance cust-list 0))
+          )))))
+
+
+
+
+
+
+
+
